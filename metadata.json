@@ -1,5 +1,5 @@
 {
-  "name": "單字卡",
-  "description": "基於無聊和迫切需要學習多益單字而誕生的單字卡應用程式。",
+  "name": "LexiDeck Local",
+  "description": "A high-performance, offline-capable flashcard app featuring local OCR for text extraction and algorithmic sentence analysis without external AI dependencies.",
   "requestFramePermissions": []
 }

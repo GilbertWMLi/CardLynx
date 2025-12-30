@@ -53,7 +53,7 @@ export const OCRUploader: React.FC<OCRUploaderProps> = ({ onTextExtracted }) => 
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-slate-700 mb-2">
-        自動辨識圖片文字
+        自動將圖檔轉為文字
       </label>
       
       <div className="flex items-center gap-3">
@@ -79,7 +79,7 @@ export const OCRUploader: React.FC<OCRUploaderProps> = ({ onTextExtracted }) => 
         
         {!isProcessing && (
            <span className="text-xs text-slate-400">
-             上傳一張範例句子清楚的照片。
+             上傳清晰的範例句子照片。
            </span>
         )}
       </div>
