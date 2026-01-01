@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, GraduationCap, Globe } from 'lucide-react';
+import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, Globe } from 'lucide-react';
 import { Flashcard, AppView, Language, Proficiency } from './types';
 import { CardForm } from './components/CardForm';
 import { QuizMode } from './components/QuizMode';
@@ -16,16 +16,23 @@ function App() {
     const saved = localStorage.getItem('lexideck-data-v2');
     if (saved) {
       try {
-        setCards(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        // Migration: Check if old structure exists and map to new structure
+        const migrated = parsed.map((c: any) => ({
+          ...c,
+          blocks: c.blocks.map((b: any) => ({
+            ...b,
+            // Map old 'definition' to 'defEN' if 'defEN' doesn't exist
+            defEN: b.defEN !== undefined ? b.defEN : (b.definition || ''),
+            defCN: b.defCN || '',
+            // Map old 'exampleSentence' to 'sentenceEN' if 'sentenceEN' doesn't exist
+            sentenceEN: b.sentenceEN !== undefined ? b.sentenceEN : (b.exampleSentence || ''),
+            sentenceCN: b.sentenceCN || '',
+          }))
+        }));
+        setCards(migrated);
       } catch (e) {
         console.error("Failed to load cards", e);
-      }
-    } else {
-      // Check for V1 data and simple migrate (warning: this is destructive if structure is too different, assuming clean slate for V2 per request)
-      const old = localStorage.getItem('lexideck-cards');
-      if (old) {
-        // Here we could migrate, but for simplicity in this major refactor, we start fresh or user manual migrate.
-        // Let's just ignore V1 for now to prevent crashes.
       }
     }
   }, []);
@@ -182,13 +189,17 @@ function App() {
                     <span className="text-xs font-bold uppercase text-slate-400 bg-slate-100 px-2 py-1 rounded">{block.pos}</span>
                   </div>
                   <div className="flex-1 space-y-4">
-                    <div>
-                      <h3 className="text-xl font-bold text-slate-800 leading-snug">{block.definition}</h3>
+                    {/* Definitions */}
+                    <div className="space-y-1">
+                      {block.defEN && <h3 className="text-xl font-bold text-slate-800 leading-snug">{block.defEN}</h3>}
+                      {block.defCN && <p className="text-md text-slate-500 font-medium">{block.defCN}</p>}
                     </div>
                     
-                    {block.exampleSentence && (
-                       <div className="bg-slate-50 border-l-4 border-slate-300 p-4 rounded-r-lg">
-                         <p className="text-slate-700 italic font-serif text-lg">"{block.exampleSentence}"</p>
+                    {/* Sentences */}
+                    {(block.sentenceEN || block.sentenceCN) && (
+                       <div className="bg-slate-50 border-l-4 border-slate-300 p-4 rounded-r-lg space-y-2">
+                         {block.sentenceEN && <p className="text-slate-800 italic font-serif text-lg">"{block.sentenceEN}"</p>}
+                         {block.sentenceCN && <p className="text-slate-500 text-sm">{block.sentenceCN}</p>}
                        </div>
                     )}
                     
@@ -266,7 +277,7 @@ function App() {
                    {card.blocks.slice(0, 2).map((b, i) => (
                      <div key={i} className="text-sm text-slate-600 line-clamp-1 flex gap-2">
                        <span className="font-bold text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-500">{b.pos}</span>
-                       <span>{b.definition}</span>
+                       <span title={b.defCN || b.defEN}>{b.defEN || b.defCN}</span>
                      </div>
                    ))}
                    {card.blocks.length > 2 && <p className="text-xs text-slate-400 mt-2">+{card.blocks.length - 2} more definitions</p>}

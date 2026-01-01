@@ -4,18 +4,21 @@ export type Proficiency = 'new' | 'forgot' | 'hazy' | 'mastered';
 
 export interface DefinitionBlock {
   id: string;
-  pos: string; // Part of Speech (e.g., noun, verb, or for JP: 動詞, 形容詞)
-  definition: string;
-  exampleSentence: string;
-  imageUrl?: string; // Base64 string for local storage
+  pos: string; 
+  // Split into bilingual fields
+  defEN: string; // English Definition
+  defCN: string; // Chinese Definition
+  sentenceEN: string; // English Example
+  sentenceCN: string; // Chinese Example translation
+  imageUrl?: string;
 }
 
 export interface Flashcard {
   id: string;
   language: Language;
-  term: string; // Word or Kanji
-  reading?: string; // For Japanese Kana reading
-  blocks: DefinitionBlock[]; // Multiple definitions/POS
+  term: string; 
+  reading?: string; 
+  blocks: DefinitionBlock[];
   createdAt: number;
   proficiency: Proficiency;
   lastReviewed?: number;
@@ -37,7 +40,7 @@ export enum AppView {
   HOME = 'HOME',
   DECK = 'DECK',
   DETAIL = 'DETAIL',
-  QUIZ = 'QUIZ', // Spelling/Sentence construction
-  REVIEW = 'REVIEW', // Flashcard proficiency check
+  QUIZ = 'QUIZ', 
+  REVIEW = 'REVIEW', 
   ADD = 'ADD'
 }

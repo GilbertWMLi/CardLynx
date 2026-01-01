@@ -20,12 +20,13 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
   const [result, setResult] = useState<ComparisonResult | null>(null);
 
   useEffect(() => {
-    // Generate quiz items: find cards with examples, pick one random block per card
+    // Generate quiz items: find cards with EN sentences
     const items: QuizItem[] = [];
     const shuffled = [...cards].sort(() => Math.random() - 0.5);
     
     shuffled.forEach(card => {
-      const blocksWithExamples = card.blocks.filter(b => b.exampleSentence && b.exampleSentence.length > 5);
+      // Compatibility check: look for sentenceEN or fallback to exampleSentence if migrated poorly
+      const blocksWithExamples = card.blocks.filter(b => (b.sentenceEN && b.sentenceEN.length > 5));
       if (blocksWithExamples.length > 0) {
         // Pick random block
         const randomBlock = blocksWithExamples[Math.floor(Math.random() * blocksWithExamples.length)];
@@ -39,8 +40,8 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
   if (queue.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-slate-500 mb-4">目前沒有帶有例句並且可用來進行造句練習的字卡。</p>
-        <button onClick={onExit} className="text-brand-600 hover:underline">回到列表</button>
+        <p className="text-slate-500 mb-4">No cards with example sentences available for sentence building.</p>
+        <button onClick={onExit} className="text-brand-600 hover:underline">Return to list</button>
       </div>
     );
   }
@@ -48,7 +49,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
   const currentItem = queue[currentIdx];
 
   const checkAnswer = () => {
-    const analysis = analyzeSentence(userInput, currentItem.targetBlock.exampleSentence);
+    const analysis = analyzeSentence(userInput, currentItem.targetBlock.sentenceEN);
     setResult(analysis);
   };
 
@@ -66,7 +67,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
       <div className="mb-6 flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-800">造句練習</h2>
+        <h2 className="text-2xl font-bold text-slate-800">Sentence Constructor</h2>
         <div className="flex items-center gap-4">
            <span className="text-sm font-medium text-slate-500">
              {currentIdx + 1} / {queue.length}
@@ -83,19 +84,27 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
           <div className="inline-block px-3 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-600 mb-2">
             {currentItem.targetBlock.pos}
           </div>
-          <p className="text-lg text-slate-600 italic mt-2">"{currentItem.targetBlock.definition}"</p>
+          
+          {/* Hint Section: Use Chinese definition/sentence if available, else English def */}
+          <div className="mt-4 p-4 bg-yellow-50 rounded-lg border border-yellow-100 inline-block max-w-lg">
+             {currentItem.targetBlock.sentenceCN ? (
+               <p className="text-lg text-slate-800 font-medium">"{currentItem.targetBlock.sentenceCN}"</p>
+             ) : (
+               <p className="text-lg text-slate-600 italic">"{currentItem.targetBlock.defCN || currentItem.targetBlock.defEN}"</p>
+             )}
+          </div>
         </div>
 
         <div className="space-y-4">
           <label className="block text-sm font-medium text-slate-700">
-            Reconstruct the example sentence for this meaning:
+            Translate/Reconstruct the sentence into English:
           </label>
           
           <textarea
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
             disabled={!!result}
-            placeholder="Type the sentence..."
+            placeholder="Type the sentence in English..."
             className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 min-h-[100px] text-lg resize-none"
           />
 
@@ -136,7 +145,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
                  
                  <div className="mt-4 pt-4 border-t border-slate-200">
                     <p className="text-xs font-bold text-slate-500 uppercase mb-1">Correct Sentence:</p>
-                    <p className="text-slate-700 font-medium">{currentItem.targetBlock.exampleSentence}</p>
+                    <p className="text-slate-700 font-medium">{currentItem.targetBlock.sentenceEN}</p>
                  </div>
               </div>
 
