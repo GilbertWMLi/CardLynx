@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Image as ImageIcon, X, BookOpen } from 'lucide-react';
+import { Plus, Trash2, Image as ImageIcon, X, BookOpen, UploadCloud, Loader2 } from 'lucide-react';
 import { Flashcard, Language, DefinitionBlock } from '../types';
 import { OCRUploader } from './OCRUploader';
+import { StorageService } from '../utils/storage';
+import { api } from '../utils/api';
 
 interface CardFormProps {
   language: Language;
@@ -13,6 +15,7 @@ interface CardFormProps {
 export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, initialData }) => {
   const [term, setTerm] = useState(initialData?.term || '');
   const [reading, setReading] = useState(initialData?.reading || '');
+  const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
   
   // Use migrator logic fallback for old data
   const [blocks, setBlocks] = useState<DefinitionBlock[]>(initialData?.blocks?.map((b:any) => ({
@@ -39,14 +42,23 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
     setBlocks(blocks.map(b => b.id === id ? { ...b, [field]: value } : b));
   };
 
-  const handleImageUpload = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (blockId: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const user = await StorageService.getCurrentUser();
+    if (!user) return;
+
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        updateBlock(id, 'imageUrl', reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setUploadingBlockId(blockId);
+      
+      try {
+        const imageUrl = await api.uploadImage(user.id, file);
+        updateBlock(blockId, 'imageUrl', imageUrl);
+      } catch (error) {
+        console.error("Upload failed", error);
+        alert("Failed to upload image. Please check server connection.");
+      } finally {
+        setUploadingBlockId(null);
+      }
     }
   };
 
@@ -77,7 +89,7 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
     <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
       <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
         <h2 className="text-xl font-bold text-slate-800">
-          {initialData ? 'Edit Card' : `添加 ${language === 'EN' ? '英文' : '日文'} 字卡`}
+          {initialData ? 'Edit Card' : `Add ${language === 'EN' ? 'English' : 'Japanese'} Card`}
         </h2>
         <button onClick={onCancel} className="p-2 hover:bg-slate-100 rounded-full">
           <X className="w-6 h-6 text-slate-400" />
@@ -89,7 +101,7 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
           <div className="flex gap-4">
             <div className="flex-1">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                {language === 'EN' ? '單字' : 'Term (Kanji/Kana)'}
+                {language === 'EN' ? 'Word' : 'Term (Kanji/Kana)'}
               </label>
               <div className="flex gap-2">
                 <input
@@ -126,13 +138,13 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
 
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">定義</h3>
+              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Definitions</h3>
               <button onClick={handleAddBlock} className="text-sm text-brand-600 font-medium hover:underline flex items-center gap-1">
-                <Plus className="w-4 h-4" /> 增加區塊
+                <Plus className="w-4 h-4" /> Add Section
               </button>
             </div>
 
-            {blocks.map((block, index) => (
+            {blocks.map((block) => (
               <div key={block.id} className="bg-slate-50 p-5 rounded-xl border border-slate-200 relative group">
                 {blocks.length > 1 && (
                   <button 
@@ -145,8 +157,8 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
                 )}
                 
                 {/* Row 1: POS and Definitions */}
-                <div className="mb-4">
-                   <label className="block text-xs font-semibold text-slate-500 mb-1">詞性</label>
+                <div className="mb-6">
+                   <label className="block text-xs font-semibold text-slate-500 mb-1">Part of Speech</label>
                    <select 
                      value={block.pos}
                      onChange={e => updateBlock(block.id, 'pos', e.target.value)}
@@ -162,7 +174,7 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
                    
                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">英文解釋</label>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">English Definition</label>
                         <input
                           value={block.defEN}
                           onChange={e => updateBlock(block.id, 'defEN', e.target.value)}
@@ -172,7 +184,7 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-semibold text-slate-500 mb-1">中文解釋</label>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">Chinese Definition (解釋)</label>
                         <input
                           value={block.defCN}
                           onChange={e => updateBlock(block.id, 'defCN', e.target.value)}
@@ -183,55 +195,105 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
                    </div>
                 </div>
 
-                {/* Row 2: Examples */}
-                <div className="mb-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="block text-xs font-semibold text-slate-500">例句</label>
-                    <div className="scale-75 origin-right"><OCRUploader onTextExtracted={(text) => updateBlock(block.id, 'sentenceEN', text)} /></div>
+                {/* Divider */}
+                <div className="border-t border-slate-200 my-4"></div>
+
+                {/* Row 2: Examples with OCR */}
+                <div className="mb-6">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      <BookOpen className="w-3 h-3" /> 
+                      Example Sentences
+                    </label>
+                    <div className="scale-90 origin-right">
+                       <OCRUploader onTextExtracted={(text) => updateBlock(block.id, 'sentenceEN', text)} />
+                    </div>
                   </div>
-                  <textarea
-                    value={block.sentenceEN}
-                    onChange={e => updateBlock(block.id, 'sentenceEN', e.target.value)}
-                    className="w-full p-2 border border-slate-300 rounded-md text-sm h-16 resize-none mb-2"
-                    placeholder="Example sentence..."
-                  />
                   
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">例句翻譯</label>
-                  <input
-                    value={block.sentenceCN}
-                    onChange={e => updateBlock(block.id, 'sentenceCN', e.target.value)}
-                    className="w-full p-2 border border-slate-300 rounded-md text-sm"
-                    placeholder="例句的中文翻譯..."
-                  />
+                  <div className="space-y-3">
+                    <div>
+                        <textarea
+                            value={block.sentenceEN}
+                            onChange={e => updateBlock(block.id, 'sentenceEN', e.target.value)}
+                            className="w-full p-3 border border-slate-300 rounded-md text-sm h-20 resize-none focus:ring-1 focus:ring-brand-500 outline-none"
+                            placeholder="Type English sentence here, or use the camera button above to scan..."
+                        />
+                    </div>
+                    <div>
+                        <input
+                            value={block.sentenceCN}
+                            onChange={e => updateBlock(block.id, 'sentenceCN', e.target.value)}
+                            className="w-full p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-brand-500 outline-none"
+                            placeholder="Translate example to Chinese (Optional)..."
+                        />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Row 3: Image */}
+                {/* Divider */}
+                <div className="border-t border-slate-200 my-4"></div>
+
+                {/* Row 3: Visual Memory Aid (Image Upload) */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">圖片</label>
-                  <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide mb-3">
+                    <ImageIcon className="w-3 h-3" />
+                    Visual Memory Aid
+                  </label>
+                  
+                  <div className="flex items-start gap-4 p-4 bg-white rounded-lg border border-slate-200 border-dashed">
                     {block.imageUrl ? (
-                      <div className="relative w-24 h-24 rounded-lg overflow-hidden border border-slate-300 group-image">
+                      <div className="relative w-32 h-32 rounded-lg overflow-hidden border border-slate-300 group-image shadow-sm">
                         <img src={block.imageUrl} alt="Visual aid" className="w-full h-full object-cover" />
                         <button 
                           type="button"
                           onClick={() => updateBlock(block.id, 'imageUrl', '')}
                           className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity text-white"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-6 h-6" />
                         </button>
                       </div>
                     ) : (
-                      <div className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center text-slate-400">
-                        <ImageIcon className="w-6 h-6 mb-1" />
-                        <span className="text-[10px]">No Image</span>
+                      <div className="w-32 h-32 bg-slate-50 border border-slate-200 rounded-lg flex flex-col items-center justify-center text-slate-400">
+                        <ImageIcon className="w-8 h-8 mb-2 opacity-50" />
+                        <span className="text-[10px] text-center px-2">No image selected</span>
                       </div>
                     )}
-                    <label className="cursor-pointer bg-white border border-slate-300 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-slate-50 transition-colors">
-                      上傳
-                      <input type="file" className="hidden" accept="image/*" onChange={(e) => handleImageUpload(block.id, e)} />
-                    </label>
+
+                    <div className="flex-1">
+                      <p className="text-sm text-slate-600 mb-3">
+                        Upload a photo or illustration to help you associate an image with this word.
+                      </p>
+                      
+                      <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border shadow-sm text-sm font-medium transition-all cursor-pointer
+                        ${uploadingBlockId === block.id 
+                           ? 'bg-slate-100 text-slate-400 border-slate-200' 
+                           : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-brand-400 hover:text-brand-600'
+                        }`}>
+                        
+                        {uploadingBlockId === block.id ? (
+                           <>
+                             <Loader2 className="w-4 h-4 animate-spin" />
+                             Uploading...
+                           </>
+                        ) : (
+                           <>
+                             <UploadCloud className="w-4 h-4" />
+                             Choose Image
+                           </>
+                        )}
+                        
+                        <input 
+                           type="file" 
+                           className="hidden" 
+                           accept="image/*" 
+                           disabled={uploadingBlockId === block.id}
+                           onChange={(e) => handleImageUpload(block.id, e)} 
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
+
               </div>
             ))}
           </div>
@@ -239,8 +301,8 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
       </div>
 
       <div className="p-6 border-t border-slate-100 flex gap-3 bg-slate-50">
-        <button type="button" onClick={onCancel} className="flex-1 py-3 px-4 border border-slate-300 rounded-xl hover:bg-white text-slate-700 font-semibold transition-colors">取消</button>
-        <button type="button" onClick={handleSubmit} className="flex-1 py-3 px-4 bg-brand-600 text-white rounded-xl hover:bg-brand-700 font-semibold shadow-lg shadow-brand-200 transition-all">儲存</button>
+        <button type="button" onClick={onCancel} className="flex-1 py-3 px-4 border border-slate-300 rounded-xl hover:bg-white text-slate-700 font-semibold transition-colors">Cancel</button>
+        <button type="button" onClick={handleSubmit} className="flex-1 py-3 px-4 bg-brand-600 text-white rounded-xl hover:bg-brand-700 font-semibold shadow-lg shadow-brand-200 transition-all">Save Card</button>
       </div>
     </div>
   );

@@ -1,67 +1,71 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, Globe } from 'lucide-react';
-import { Flashcard, AppView, Language, Proficiency } from './types';
+import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, Globe, LogOut } from 'lucide-react';
+import { Flashcard, AppView, Language, Proficiency, User } from './types';
 import { CardForm } from './components/CardForm';
 import { QuizMode } from './components/QuizMode';
 import { ReviewMode } from './components/ReviewMode';
+import { AuthForm } from './components/AuthForm';
+import { StorageService } from './utils/storage';
+import { api } from './utils/api';
 
 function App() {
-  const [view, setView] = useState<AppView>(AppView.HOME);
+  const [user, setUser] = useState<User | null>(null);
+  const [view, setView] = useState<AppView>(AppView.AUTH);
   const [lang, setLang] = useState<Language>('EN');
-  const [cards, setCards] = useState<Flashcard[]>([]);
   const [selectedCard, setSelectedCard] = useState<Flashcard | null>(null);
-  
-  // Load & Migration Logic
+  const [cards, setCards] = useState<Flashcard[]>([]);
+
+  // 1. Check for Session on mount
   useEffect(() => {
-    const saved = localStorage.getItem('lexideck-data-v2');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // Migration: Check if old structure exists and map to new structure
-        const migrated = parsed.map((c: any) => ({
-          ...c,
-          blocks: c.blocks.map((b: any) => ({
-            ...b,
-            // Map old 'definition' to 'defEN' if 'defEN' doesn't exist
-            defEN: b.defEN !== undefined ? b.defEN : (b.definition || ''),
-            defCN: b.defCN || '',
-            // Map old 'exampleSentence' to 'sentenceEN' if 'sentenceEN' doesn't exist
-            sentenceEN: b.sentenceEN !== undefined ? b.sentenceEN : (b.exampleSentence || ''),
-            sentenceCN: b.sentenceCN || '',
-          }))
-        }));
-        setCards(migrated);
-      } catch (e) {
-        console.error("Failed to load cards", e);
+    StorageService.getCurrentUser().then(currentUser => {
+      if (currentUser) {
+        setUser(currentUser);
+        setView(AppView.HOME);
+        loadCards(currentUser.id);
+      } else {
+        setView(AppView.AUTH);
       }
-    }
+    });
   }, []);
 
-  // Save
-  useEffect(() => {
-    localStorage.setItem('lexideck-data-v2', JSON.stringify(cards));
-  }, [cards]);
+  const loadCards = async (userId: string) => {
+    const data = await api.getCards(userId);
+    setCards(data);
+  };
+
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
+    setView(AppView.HOME);
+    loadCards(loggedInUser.id);
+  };
+
+  const handleLogout = () => {
+    StorageService.logout();
+    setUser(null);
+    setCards([]);
+    setView(AppView.AUTH);
+  };
 
   const filteredCards = cards.filter(c => c.language === lang);
 
-  const handleSaveCard = (newCard: Flashcard) => {
-    setCards(prev => {
-      const exists = prev.findIndex(c => c.id === newCard.id);
-      if (exists >= 0) {
-        const updated = [...prev];
-        updated[exists] = newCard;
-        return updated;
-      }
-      return [newCard, ...prev];
-    });
+  const handleSaveCard = async (cardData: Flashcard) => {
+    if (!user) return;
+    
+    await api.saveCard(user.id, cardData);
+    await loadCards(user.id); // Refresh list
+    
     setView(AppView.DECK);
     setSelectedCard(null);
   };
 
-  const handleDeleteCard = (id: string, e?: React.MouseEvent) => {
+  const handleDeleteCard = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    if (!user) return;
+
     if (confirm('Delete this card permanently?')) {
-      setCards(prev => prev.filter(c => c.id !== id));
+      await api.deleteCard(user.id, id);
+      await loadCards(user.id); // Refresh list
+      
       if (selectedCard?.id === id) {
         setSelectedCard(null);
         setView(AppView.DECK);
@@ -69,8 +73,21 @@ function App() {
     }
   };
 
-  const handleUpdateProficiency = (id: string, level: Proficiency) => {
-    setCards(prev => prev.map(c => c.id === id ? { ...c, proficiency: level, lastReviewed: Date.now() } : c));
+  const handleUpdateProficiency = async (id: string, level: Proficiency) => {
+    if (!user) return;
+    
+    const cardToUpdate = cards.find(c => c.id === id);
+    if (cardToUpdate) {
+      const updatedCard = { 
+        ...cardToUpdate, 
+        proficiency: level, 
+        lastReviewed: Date.now() 
+      };
+      // Optimistic update
+      setCards(prev => prev.map(c => c.id === id ? updatedCard : c));
+      // Save to server
+      await api.saveCard(user.id, updatedCard);
+    }
   };
 
   const getProficiencyColor = (p: Proficiency) => {
@@ -84,14 +101,30 @@ function App() {
 
   // --- Views ---
 
+  // 0. Auth View
+  if (!user || view === AppView.AUTH) {
+    return <AuthForm onLogin={handleLogin} />;
+  }
+
   // 1. Home / Language Selection
   if (view === AppView.HOME) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6">
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 relative">
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          <span className="text-sm font-medium text-slate-500">Hi, {user.username}</span>
+          <button 
+            onClick={handleLogout} 
+            className="p-2 bg-white text-slate-600 hover:text-red-600 rounded-full shadow-sm border border-slate-200 transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+
         <div className="text-center mb-12">
           <div className="w-20 h-20 bg-gradient-to-br from-brand-600 to-indigo-700 rounded-3xl mx-auto flex items-center justify-center text-white text-4xl font-black shadow-2xl mb-6">L</div>
-          <h1 className="text-4xl font-extrabold text-slate-800 mb-2">CardLynx</h1>
-          <p className="text-slate-500">~~尚在開發中~~</p>
+          <h1 className="text-4xl font-extrabold text-slate-800 mb-2">LexiDeck <span className="text-brand-600">Filesystem</span></h1>
+          <p className="text-slate-500">Data stored in: ./Userdata</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
@@ -101,7 +134,7 @@ function App() {
           >
             <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 text-2xl font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">En</div>
             <h2 className="text-2xl font-bold text-slate-800">English</h2>
-            <p className="text-slate-400 mt-2">劍橋詞典</p>
+            <p className="text-slate-400 mt-2">Cambridge Dictionary Support</p>
           </button>
 
           <button 
@@ -110,7 +143,7 @@ function App() {
           >
              <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-4 text-2xl font-bold group-hover:bg-rose-600 group-hover:text-white transition-colors">あ</div>
             <h2 className="text-2xl font-bold text-slate-800">Japanese</h2>
-            <p className="text-slate-400 mt-2">Weblio 日語詞典</p>
+            <p className="text-slate-400 mt-2">Weblio Dictionary Support</p>
           </button>
         </div>
       </div>
@@ -159,7 +192,7 @@ function App() {
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
         <div className="max-w-3xl mx-auto">
           <button onClick={() => { setSelectedCard(null); setView(AppView.DECK); }} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-800 font-medium">
-            <ArrowLeft className="w-5 h-5" /> 回到字卡
+            <ArrowLeft className="w-5 h-5" /> Back to Deck
           </button>
           
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
@@ -231,15 +264,25 @@ function App() {
                {lang === 'EN' ? 'English Deck' : 'Japanese Deck'}
              </h1>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setView(AppView.REVIEW)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
-              <Layers className="w-4 h-4" /> 單字卡
-            </button>
-            <button onClick={() => setView(AppView.QUIZ)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors">
-              <Brain className="w-4 h-4" /> 測驗
-            </button>
-            <button onClick={() => { setSelectedCard(null); setView(AppView.ADD); }} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors">
-              <Plus className="w-4 h-4" /> 添加字卡
+          <div className="flex gap-4 items-center">
+            <div className="flex gap-2">
+              <button onClick={() => setView(AppView.REVIEW)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                <Layers className="w-4 h-4" /> Flashcards
+              </button>
+              <button onClick={() => setView(AppView.QUIZ)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors">
+                <Brain className="w-4 h-4" /> Quiz
+              </button>
+              <button onClick={() => { setSelectedCard(null); setView(AppView.ADD); }} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors">
+                <Plus className="w-4 h-4" /> Add
+              </button>
+            </div>
+            
+            <button 
+              onClick={handleLogout} 
+              className="p-2 ml-2 text-slate-400 hover:text-red-500 hover:bg-slate-50 rounded-full transition-colors"
+              title="Logout"
+            >
+              <LogOut className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -249,8 +292,8 @@ function App() {
          {filteredCards.length === 0 ? (
            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
              <BookOpen className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-             <h3 className="text-lg font-semibold text-slate-500">尚未有任何字卡</h3>
-             <button onClick={() => setView(AppView.ADD)} className="mt-4 text-brand-600 font-bold hover:underline">開始建立字卡</button>
+             <h3 className="text-lg font-semibold text-slate-500">No cards in this deck</h3>
+             <button onClick={() => setView(AppView.ADD)} className="mt-4 text-brand-600 font-bold hover:underline">Create your first card</button>
            </div>
          ) : (
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

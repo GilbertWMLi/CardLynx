@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Flashcard, ComparisonResult, DefinitionBlock } from '../types';
 import { analyzeSentence } from '../utils/analysis';
-import { Check, ArrowRight, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Check, ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface QuizModeProps {
   cards: Flashcard[];

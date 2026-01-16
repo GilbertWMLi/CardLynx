@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import Tesseract from 'tesseract.js';
-import { Camera, Loader2, Image as ImageIcon, CheckCircle } from 'lucide-react';
+import { Camera, Loader2 } from 'lucide-react';
 
 interface OCRUploaderProps {
   onTextExtracted: (text: string) => void;
@@ -53,7 +53,7 @@ export const OCRUploader: React.FC<OCRUploaderProps> = ({ onTextExtracted }) => 
   return (
     <div className="mb-4">
       <label className="block text-sm font-medium text-slate-700 mb-2">
-        自動將圖檔轉為文字
+        Auto-Fill from Image (OCR)
       </label>
       
       <div className="flex items-center gap-3">
@@ -79,7 +79,7 @@ export const OCRUploader: React.FC<OCRUploaderProps> = ({ onTextExtracted }) => 
         
         {!isProcessing && (
            <span className="text-xs text-slate-400">
-             上傳清晰的範例句子照片。
+             Takes a clear photo of an example sentence.
            </span>
         )}
       </div>

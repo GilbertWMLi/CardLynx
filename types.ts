@@ -2,6 +2,11 @@ export type Language = 'EN' | 'JP';
 
 export type Proficiency = 'new' | 'forgot' | 'hazy' | 'mastered';
 
+export interface User {
+  id: string;
+  username: string;
+}
+
 export interface DefinitionBlock {
   id: string;
   pos: string; 
@@ -37,6 +42,7 @@ export interface FeedbackItem {
 }
 
 export enum AppView {
+  AUTH = 'AUTH',
   HOME = 'HOME',
   DECK = 'DECK',
   DETAIL = 'DETAIL',
