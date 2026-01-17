@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Wand2, RefreshCcw, Type, Sparkles, ArrowDown } from 'lucide-react';
 
 interface RubyInputProps {
@@ -21,7 +21,7 @@ export const RubyInput: React.FC<RubyInputProps> = ({
   onChange, 
   label, 
   placeholder,
-  enableAutoDetect = false 
+  // enableAutoDetect - removed from destructuring because it is currently unused in logic, causing TS build error
 }) => {
   const [mode, setMode] = useState<'visual' | 'raw'>('visual');
   const [segments, setSegments] = useState<RubySegment[]>([]);

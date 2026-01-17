@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Flashcard, Proficiency } from '../types';
-import { CheckCircle, HelpCircle, XCircle, ArrowLeft, Eye, EyeOff, Link2, StickyNote } from 'lucide-react';
+import { CheckCircle, HelpCircle, XCircle, ArrowLeft, Eye, EyeOff, StickyNote } from 'lucide-react';
 import { RubyText } from './RubyText';
 
 interface ReviewModeProps {

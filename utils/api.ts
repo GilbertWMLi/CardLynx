@@ -1,11 +1,18 @@
 import { Flashcard, User, Language } from '../types';
+import { Capacitor } from '@capacitor/core';
 
 // Default to localhost, but allow overriding via localStorage
 export const getBaseUrl = () => {
   const stored = localStorage.getItem('lexideck_server_url');
   if (stored) return stored.trim(); // Safety trim to prevent "Failed to parse URL" errors
   
-  // Dynamic default: use the same hostname as the browser page
+  // CRITICAL: If running as a Native App (APK), 'localhost' refers to the phone, not the PC.
+  // We return an empty string to signal the UI that configuration is required.
+  if (Capacitor.isNativePlatform()) {
+     return '';
+  }
+
+  // Dynamic default for Web Browser usage:
   // This fixes issues where accessing via 192.168.x.x fails because API tries localhost
   if (typeof window !== 'undefined') {
     return `http://${window.location.hostname}:3001`;
@@ -14,7 +21,11 @@ export const getBaseUrl = () => {
   return 'http://localhost:3001';
 };
 
-const getApiUrl = () => `${getBaseUrl()}/api`;
+const getApiUrl = () => {
+    const base = getBaseUrl();
+    if (!base) return ''; // Handle empty base case
+    return `${base}/api`;
+};
 
 // Helper to handle response errors gracefully
 const handleResponse = async (res: Response) => {
@@ -42,7 +53,10 @@ const handleResponse = async (res: Response) => {
 
 export const api = {
   async register(username: string, password: string): Promise<User> {
-    const targetUrl = `${getApiUrl()}/register`;
+    const apiUrl = getApiUrl();
+    if (!apiUrl) throw new Error('Server URL not set. Please configure settings.');
+
+    const targetUrl = `${apiUrl}/register`;
     try {
       const res = await fetch(targetUrl, {
         method: 'POST',
@@ -64,7 +78,10 @@ export const api = {
   },
 
   async login(username: string, password: string): Promise<User> {
-    const targetUrl = `${getApiUrl()}/login`;
+    const apiUrl = getApiUrl();
+    if (!apiUrl) throw new Error('Server URL not set. Please configure settings.');
+
+    const targetUrl = `${apiUrl}/login`;
     try {
       const res = await fetch(targetUrl, {
         method: 'POST',
@@ -81,8 +98,11 @@ export const api = {
   },
 
   async getCards(userId: string): Promise<Flashcard[]> {
+    const apiUrl = getApiUrl();
+    if (!apiUrl) return [];
+
     try {
-      const res = await fetch(`${getApiUrl()}/cards?userId=${userId}`);
+      const res = await fetch(`${apiUrl}/cards?userId=${userId}`);
       if (!res.ok) return [];
       return res.json();
     } catch (e) {
@@ -92,7 +112,10 @@ export const api = {
   },
 
   async saveCard(userId: string, card: Flashcard): Promise<void> {
-    await fetch(`${getApiUrl()}/cards`, {
+    const apiUrl = getApiUrl();
+    if (!apiUrl) return;
+
+    await fetch(`${apiUrl}/cards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, card })
@@ -100,18 +123,24 @@ export const api = {
   },
 
   async deleteCard(userId: string, cardId: string): Promise<void> {
-    await fetch(`${getApiUrl()}/cards/${cardId}?userId=${userId}`, {
+    const apiUrl = getApiUrl();
+    if (!apiUrl) return;
+
+    await fetch(`${apiUrl}/cards/${cardId}?userId=${userId}`, {
       method: 'DELETE'
     });
   },
 
   async uploadImage(userId: string, file: File): Promise<string> {
+    const apiUrl = getApiUrl();
+    if (!apiUrl) throw new Error('Server URL not configured');
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = async () => {
         try {
-          const res = await fetch(`${getApiUrl()}/upload`, {
+          const res = await fetch(`${apiUrl}/upload`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -133,7 +162,10 @@ export const api = {
   },
 
   async generateAudio(userId: string, text: string, language: Language): Promise<string> {
-    const targetUrl = `${getApiUrl()}/generate-audio`;
+    const apiUrl = getApiUrl();
+    if (!apiUrl) throw new Error('Server URL not configured');
+
+    const targetUrl = `${apiUrl}/generate-audio`;
     console.log(`[API] Sending Audio Request to: ${targetUrl}`);
     console.log(`[API] Payload:`, { userId, text, language });
 

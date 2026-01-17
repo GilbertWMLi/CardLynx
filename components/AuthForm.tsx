@@ -3,6 +3,7 @@ import { User } from '../types';
 import { StorageService } from '../utils/storage';
 import { Loader2, Lock, User as UserIcon, ArrowRight, Settings, Server } from 'lucide-react';
 import { getBaseUrl } from '../utils/api';
+import { Capacitor } from '@capacitor/core';
 
 interface AuthFormProps {
   onLogin: (user: User) => void;
@@ -18,9 +19,19 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
   // Server Config State
   const [showServerConfig, setShowServerConfig] = useState(false);
   const [serverUrl, setServerUrl] = useState(getBaseUrl());
+  const [isNative, setIsNative] = useState(false);
 
   useEffect(() => {
-    setServerUrl(getBaseUrl());
+    const native = Capacitor.isNativePlatform();
+    setIsNative(native);
+
+    // If on mobile app and NO url is saved, force open settings
+    // because localhost won't work.
+    if (native && !localStorage.getItem('lexideck_server_url')) {
+        setShowServerConfig(true);
+    }
+    
+    setServerUrl(getBaseUrl() || 'http://192.168.1.XXX:3001');
   }, []);
 
   const saveServerUrl = () => {
@@ -33,6 +44,11 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
     // 3. Auto-add http:// if missing
     if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
       cleaned = `http://${cleaned}`;
+    }
+
+    // Validate format roughly
+    if (!cleaned.includes(':') || cleaned.split(':').length < 2) {
+        alert("Warning: URL usually requires a port (e.g., :3001)");
     }
 
     localStorage.setItem('lexideck_server_url', cleaned);
@@ -57,6 +73,10 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
       onLogin(user);
     } catch (err: any) {
       setError(err.message || 'Connection failed. Check Server URL.');
+      // Auto open settings on connection failure in Native mode
+      if (isNative && err.message.includes('Could not connect')) {
+         setTimeout(() => setShowServerConfig(true), 1500);
+      }
     } finally {
       setLoading(false);
     }
@@ -70,24 +90,27 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
              <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-600">
                <Server className="w-6 h-6" />
              </div>
-             <h2 className="text-xl font-bold text-slate-800">Server Configuration</h2>
+             <h2 className="text-xl font-bold text-slate-800">Server Connection</h2>
              <p className="text-sm text-slate-500 mt-2">
-               Enter the IP address displayed on your computer's terminal.
+               {isNative 
+                 ? "Since you are on the Mobile App, you must connect to your PC's IP address."
+                 : "Enter the IP address displayed on your computer's terminal."
+               }
              </p>
            </div>
 
            <div className="space-y-4">
              <div>
-               <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Server URL</label>
+               <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">PC Server URL</label>
                <input 
                  type="url" 
                  value={serverUrl}
                  onChange={e => setServerUrl(e.target.value)}
                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm"
-                 placeholder="http://192.168.1.X:3001"
+                 placeholder="http://192.168.1.XXX:3001"
                />
                <p className="text-xs text-slate-400 mt-1 ml-1">
-                 Ensure you use the <b>Node.js Port (3001)</b>.
+                 Check your PC terminal for <b>Network: http://...</b>
                </p>
              </div>
              
@@ -97,12 +120,16 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
              >
                Save & Connect
              </button>
-             <button 
-               onClick={() => setShowServerConfig(false)}
-               className="w-full py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors"
-             >
-               Cancel
-             </button>
+             
+             {/* Only allow cancel if we already have a valid URL stored, otherwise forcing setup prevents broken state */}
+             {localStorage.getItem('lexideck_server_url') && (
+               <button 
+                 onClick={() => setShowServerConfig(false)}
+                 className="w-full py-3 text-slate-500 font-bold hover:text-slate-800 transition-colors"
+               >
+                 Cancel
+               </button>
+             )}
            </div>
         </div>
       </div>
@@ -195,8 +222,8 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
         </form>
         
         <div className="mt-6 text-center">
-           <p className="text-xs text-slate-400">
-             Connecting to: <span className="font-mono text-slate-600">{getBaseUrl()}</span>
+           <p className="text-xs text-slate-400 truncate px-4">
+             Target: <span className="font-mono text-slate-600">{getBaseUrl() || '(Not Configured)'}</span>
            </p>
         </div>
       </div>
