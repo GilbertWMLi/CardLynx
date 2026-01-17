@@ -5,7 +5,10 @@ export const StorageService = {
   // --- Auth Methods (Via Local Server API) ---
 
   async register(username: string, password: string): Promise<User> {
-    return await api.register(username, password);
+    const user = await api.register(username, password);
+    // FIX: Persist session ID on register so the user is considered logged in immediately
+    localStorage.setItem('lexideck:session_user', JSON.stringify(user));
+    return user;
   },
 
   async login(username: string, password: string): Promise<User> {

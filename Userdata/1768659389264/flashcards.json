@@ -1,0 +1,23 @@
+[
+  {
+    "id": "mkie5wucptvkwfu",
+    "language": "EN",
+    "term": "disappearance",
+    "audioUrl": "http://192.168.1.101:3001/userdata/1768659389264/audio/cambridge_disappearance_1768659433984.mp3",
+    "blocks": [
+      {
+        "id": "mkie5maslskqogf",
+        "pos": "noun",
+        "defEN": "",
+        "defCN": "",
+        "sentenceEN": "",
+        "sentenceCN": "",
+        "synonyms": "",
+        "antonyms": ""
+      }
+    ],
+    "note": "",
+    "createdAt": 1768659438468,
+    "proficiency": "new"
+  }
+]

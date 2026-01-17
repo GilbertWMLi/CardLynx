@@ -1,21 +1,39 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, Image as ImageIcon, X, BookOpen, UploadCloud, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Image as ImageIcon, X, BookOpen, UploadCloud, Loader2, StickyNote, Link2, Volume2 } from 'lucide-react';
 import { Flashcard, Language, DefinitionBlock } from '../types';
 import { OCRUploader } from './OCRUploader';
-import { StorageService } from '../utils/storage';
+import { RubyInput } from './RubyInput';
 import { api } from '../utils/api';
 
+// Safe ID generator that works in non-secure contexts (HTTP)
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID();
+    } catch (e) {
+      // Fallback if context is not secure
+    }
+  }
+  // Fallback: Timestamp + Random String
+  return Date.now().toString(36) + Math.random().toString(36).substring(2, 9);
+};
+
 interface CardFormProps {
+  userId: string; // New required prop
   language: Language;
   onSave: (card: Flashcard) => void;
   onCancel: () => void;
   initialData?: Flashcard;
 }
 
-export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, initialData }) => {
+export const CardForm: React.FC<CardFormProps> = ({ userId, language, onSave, onCancel, initialData }) => {
   const [term, setTerm] = useState(initialData?.term || '');
   const [reading, setReading] = useState(initialData?.reading || '');
+  const [audioUrl, setAudioUrl] = useState(initialData?.audioUrl || '');
+  const [note, setNote] = useState(initialData?.note || '');
+  
   const [uploadingBlockId, setUploadingBlockId] = useState<string | null>(null);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   
   // Use migrator logic fallback for old data
   const [blocks, setBlocks] = useState<DefinitionBlock[]>(initialData?.blocks?.map((b:any) => ({
@@ -24,12 +42,14 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
     defCN: b.defCN || '',
     sentenceEN: b.sentenceEN !== undefined ? b.sentenceEN : (b.exampleSentence || ''),
     sentenceCN: b.sentenceCN || '',
+    synonyms: b.synonyms || '',
+    antonyms: b.antonyms || ''
   })) || [
-    { id: crypto.randomUUID(), pos: 'noun', defEN: '', defCN: '', sentenceEN: '', sentenceCN: '' }
+    { id: generateId(), pos: 'noun', defEN: '', defCN: '', sentenceEN: '', sentenceCN: '', synonyms: '', antonyms: '' }
   ]);
   
   const handleAddBlock = () => {
-    setBlocks([...blocks, { id: crypto.randomUUID(), pos: 'noun', defEN: '', defCN: '', sentenceEN: '', sentenceCN: '' }]);
+    setBlocks([...blocks, { id: generateId(), pos: 'noun', defEN: '', defCN: '', sentenceEN: '', sentenceCN: '', synonyms: '', antonyms: '' }]);
   };
 
   const handleRemoveBlock = (id: string) => {
@@ -43,15 +63,12 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
   };
 
   const handleImageUpload = async (blockId: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const user = await StorageService.getCurrentUser();
-    if (!user) return;
-
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       setUploadingBlockId(blockId);
       
       try {
-        const imageUrl = await api.uploadImage(user.id, file);
+        const imageUrl = await api.uploadImage(userId, file);
         updateBlock(blockId, 'imageUrl', imageUrl);
       } catch (error) {
         console.error("Upload failed", error);
@@ -62,14 +79,43 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
     }
   };
 
+  const handleGenerateAudio = async () => {
+    console.log("DEBUG: Generate Audio Button Clicked");
+    
+    if (!userId) {
+        alert("Error: User ID is missing. Please try logging in again.");
+        return;
+    }
+    if (!term) {
+        alert("Error: Please enter a term first.");
+        return;
+    }
+    
+    setIsGeneratingAudio(true);
+    try {
+      console.log("DEBUG: Calling api.generateAudio with User:", userId, "Term:", term, "Lang:", language);
+      const url = await api.generateAudio(userId, term, language);
+      console.log("DEBUG: Audio URL received:", url);
+      setAudioUrl(url);
+    } catch (error: any) {
+      console.error("Audio generation failed", error);
+      // Display the specific message from backend if available
+      alert(`Failed to generate audio:\n${error.message}`);
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const newCard: Flashcard = {
-      id: initialData?.id || crypto.randomUUID(),
+      id: initialData?.id || generateId(),
       language,
       term,
       reading: language === 'JP' ? reading : undefined,
+      audioUrl: audioUrl || undefined,
       blocks,
+      note,
       createdAt: initialData?.createdAt || Date.now(),
       proficiency: initialData?.proficiency || 'new',
       lastReviewed: initialData?.lastReviewed
@@ -98,40 +144,74 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
 
       <div className="overflow-y-auto p-6 space-y-6 flex-1">
         <div className="grid grid-cols-1 gap-4">
-          <div className="flex gap-4">
+          {/* Main Term Row */}
+          <div className="flex gap-4 items-start">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                {language === 'EN' ? 'Word' : 'Term (Kanji/Kana)'}
-              </label>
-              <div className="flex gap-2">
-                <input
+              {/* Term Input: Uses RubyInput for Japanese, Text for English */}
+              {language === 'JP' ? (
+                <RubyInput 
+                  label="Term (Kanji)"
                   value={term}
-                  onChange={e => setTerm(e.target.value)}
-                  className="flex-1 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
-                  placeholder={language === 'EN' ? "e.g. Ephemeral" : "e.g. 猫"}
-                  required
+                  onChange={setTerm}
+                  placeholder="e.g. 猫, or 図書館"
+                  enableAutoDetect={true}
                 />
+              ) : (
+                <>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Word</label>
+                  <input
+                    value={term}
+                    onChange={e => setTerm(e.target.value)}
+                    className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
+                    placeholder="e.g. Ephemeral"
+                    required
+                  />
+                </>
+              )}
+              
+              <div className="mt-2 flex justify-end gap-3 items-center">
+                 {/* Audio Generation Button for EN and JP */}
+                 <div className="flex items-center gap-2">
+                   {audioUrl && (
+                     <audio controls src={audioUrl} className="h-8 w-40" />
+                   )}
+                   
+                   <button 
+                      type="button" 
+                      onClick={handleGenerateAudio}
+                      disabled={isGeneratingAudio || !term}
+                      className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${
+                        isGeneratingAudio ? 'bg-slate-100 text-slate-400' : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+                      }`}
+                      title={`Generate Audio via ${language === 'EN' ? 'Cambridge' : 'OJAD'}`}
+                   >
+                      {isGeneratingAudio ? <Loader2 className="w-3 h-3 animate-spin" /> : <Volume2 className="w-3 h-3" />}
+                      {isGeneratingAudio ? 'Generating...' : (audioUrl ? 'Regenerate Audio' : 'Generate Audio')}
+                   </button>
+                 </div>
+
                 {term && (
                   <button 
                     type="button" 
                     onClick={openDictionary} 
-                    className="p-3 bg-slate-100 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors"
-                    title="Open Dictionary in new tab"
+                    className="text-xs flex items-center gap-1 text-blue-600 hover:underline"
                   >
-                    <BookOpen className="w-5 h-5" />
+                    <BookOpen className="w-3 h-3" /> Check Dictionary
                   </button>
                 )}
               </div>
             </div>
+
             {language === 'JP' && (
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Reading (Furigana)</label>
+              <div className="w-1/3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Main Reading</label>
                 <input
                   value={reading}
                   onChange={e => setReading(e.target.value)}
                   className="w-full p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-brand-500 outline-none"
                   placeholder="e.g. ねこ"
                 />
+                <p className="text-[10px] text-slate-400 mt-1">Reading for the whole word</p>
               </div>
             )}
           </div>
@@ -198,7 +278,37 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
                 {/* Divider */}
                 <div className="border-t border-slate-200 my-4"></div>
 
-                {/* Row 2: Examples with OCR */}
+                {/* Row 2: Synonyms & Antonyms */}
+                <div className="mb-6">
+                   <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide mb-2">
+                      <Link2 className="w-3 h-3" /> Related Words
+                   </label>
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <input
+                          value={block.synonyms}
+                          onChange={e => updateBlock(block.id, 'synonyms', e.target.value)}
+                          className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-brand-500 outline-none text-sm"
+                          placeholder="Synonyms (e.g. happy, glad)..."
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">Similar meaning (近義詞)</p>
+                      </div>
+                      <div>
+                        <input
+                          value={block.antonyms}
+                          onChange={e => updateBlock(block.id, 'antonyms', e.target.value)}
+                          className="w-full p-2 border border-slate-300 rounded-md focus:ring-1 focus:ring-brand-500 outline-none text-sm"
+                          placeholder="Antonyms (e.g. sad, upset)..."
+                        />
+                        <p className="text-[10px] text-slate-400 mt-1">Opposite meaning (反義詞)</p>
+                      </div>
+                   </div>
+                </div>
+
+                {/* Divider */}
+                <div className="border-t border-slate-200 my-4"></div>
+
+                {/* Row 3: Examples with OCR */}
                 <div className="mb-6">
                   <div className="flex justify-between items-center mb-2">
                     <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide">
@@ -212,12 +322,22 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
                   
                   <div className="space-y-3">
                     <div>
-                        <textarea
-                            value={block.sentenceEN}
-                            onChange={e => updateBlock(block.id, 'sentenceEN', e.target.value)}
-                            className="w-full p-3 border border-slate-300 rounded-md text-sm h-20 resize-none focus:ring-1 focus:ring-brand-500 outline-none"
-                            placeholder="Type English sentence here, or use the camera button above to scan..."
-                        />
+                        {/* Sentence Input: Uses RubyInput for Japanese, Textarea for English */}
+                        {language === 'JP' ? (
+                           <RubyInput
+                             value={block.sentenceEN}
+                             onChange={val => updateBlock(block.id, 'sentenceEN', val)}
+                             placeholder="Type sentence..."
+                             enableAutoDetect={true}
+                           />
+                        ) : (
+                          <textarea
+                              value={block.sentenceEN}
+                              onChange={e => updateBlock(block.id, 'sentenceEN', e.target.value)}
+                              className="w-full p-3 border border-slate-300 rounded-md text-sm h-20 resize-none focus:ring-1 focus:ring-brand-500 outline-none"
+                              placeholder="Type English sentence here..."
+                          />
+                        )}
                     </div>
                     <div>
                         <input
@@ -233,7 +353,7 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
                 {/* Divider */}
                 <div className="border-t border-slate-200 my-4"></div>
 
-                {/* Row 3: Visual Memory Aid (Image Upload) */}
+                {/* Row 4: Visual Memory Aid (Image Upload) */}
                 <div>
                   <label className="flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide mb-3">
                     <ImageIcon className="w-3 h-3" />
@@ -297,6 +417,21 @@ export const CardForm: React.FC<CardFormProps> = ({ language, onSave, onCancel, 
               </div>
             ))}
           </div>
+
+          {/* Notes Section */}
+          <div className="bg-yellow-50 p-5 rounded-xl border border-yellow-200">
+            <label className="flex items-center gap-2 text-xs font-bold text-yellow-700 uppercase tracking-wide mb-2">
+              <StickyNote className="w-4 h-4" /> 
+              Study Notes (Memo)
+            </label>
+            <textarea
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              className="w-full p-3 bg-white border border-yellow-300 rounded-lg text-sm h-24 resize-none focus:ring-1 focus:ring-yellow-500 outline-none"
+              placeholder="Add your own mnemonics, grammar notes, or custom tags here..."
+            />
+          </div>
+
         </div>
       </div>
 

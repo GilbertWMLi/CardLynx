@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Flashcard, ComparisonResult, DefinitionBlock } from '../types';
 import { analyzeSentence } from '../utils/analysis';
 import { Check, ArrowRight, ArrowLeft } from 'lucide-react';
+import { RubyText } from './RubyText';
 
 interface QuizModeProps {
   cards: Flashcard[];
@@ -49,6 +50,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
   const currentItem = queue[currentIdx];
 
   const checkAnswer = () => {
+    // analyzeSentence now handles stripping [brackets] automatically
     const analysis = analyzeSentence(userInput, currentItem.targetBlock.sentenceEN);
     setResult(analysis);
   };
@@ -79,8 +81,12 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
       <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-200 p-8">
         <div className="mb-8 text-center">
           <p className="text-sm text-slate-400 uppercase tracking-wider font-bold mb-2">Target Keyword</p>
-          <h1 className="text-4xl font-extrabold text-brand-600 mb-2">{currentItem.card.term}</h1>
-          {currentItem.card.reading && <p className="text-xl text-slate-500 mb-2">{currentItem.card.reading}</p>}
+          <div className="text-4xl font-extrabold text-brand-600 mb-2">
+             <RubyText text={currentItem.card.term} />
+          </div>
+          {currentItem.card.reading && !currentItem.card.term.includes('[') && (
+            <p className="text-xl text-slate-500 mb-2">{currentItem.card.reading}</p>
+          )}
           <div className="inline-block px-3 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-600 mb-2">
             {currentItem.targetBlock.pos}
           </div>
@@ -90,21 +96,24 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
              {currentItem.targetBlock.sentenceCN ? (
                <p className="text-lg text-slate-800 font-medium">"{currentItem.targetBlock.sentenceCN}"</p>
              ) : (
-               <p className="text-lg text-slate-600 italic">"{currentItem.targetBlock.defCN || currentItem.targetBlock.defEN}"</p>
+               <div className="text-lg text-slate-600 italic">
+                  {/* If no Chinese hint, show English/Japanese hint with Ruby support */}
+                  "<RubyText text={currentItem.targetBlock.defCN || currentItem.targetBlock.defEN} />"
+               </div>
              )}
           </div>
         </div>
 
         <div className="space-y-4">
           <label className="block text-sm font-medium text-slate-700">
-            Translate/Reconstruct the sentence into English:
+            Translate/Reconstruct the sentence into {currentItem.card.language === 'JP' ? 'Japanese' : 'English'}:
           </label>
           
           <textarea
             value={userInput}
             onChange={(e) => setUserInput(e.target.value)}
             disabled={!!result}
-            placeholder="Type the sentence in English..."
+            placeholder="Type the sentence..."
             className="w-full p-4 rounded-xl border border-slate-300 focus:ring-2 focus:ring-brand-500 min-h-[100px] text-lg resize-none"
           />
 
@@ -145,7 +154,9 @@ export const QuizMode: React.FC<QuizModeProps> = ({ cards, onExit }) => {
                  
                  <div className="mt-4 pt-4 border-t border-slate-200">
                     <p className="text-xs font-bold text-slate-500 uppercase mb-1">Correct Sentence:</p>
-                    <p className="text-slate-700 font-medium">{currentItem.targetBlock.sentenceEN}</p>
+                    <div className="text-slate-700 font-medium">
+                       <RubyText text={currentItem.targetBlock.sentenceEN} />
+                    </div>
                  </div>
               </div>
 

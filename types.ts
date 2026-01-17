@@ -1,3 +1,4 @@
+
 export type Language = 'EN' | 'JP';
 
 export type Proficiency = 'new' | 'forgot' | 'hazy' | 'mastered';
@@ -16,6 +17,8 @@ export interface DefinitionBlock {
   sentenceEN: string; // English Example
   sentenceCN: string; // Chinese Example translation
   imageUrl?: string;
+  synonyms?: string; // Comma separated string
+  antonyms?: string; // Comma separated string
 }
 
 export interface Flashcard {
@@ -23,7 +26,9 @@ export interface Flashcard {
   language: Language;
   term: string; 
   reading?: string; 
+  audioUrl?: string; // URL to the generated audio file
   blocks: DefinitionBlock[];
+  note?: string; // User notes
   createdAt: number;
   proficiency: Proficiency;
   lastReviewed?: number;

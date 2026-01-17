@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, Globe, LogOut } from 'lucide-react';
+import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, Globe, LogOut, StickyNote, Volume2 } from 'lucide-react';
 import { Flashcard, AppView, Language, Proficiency, User } from './types';
 import { CardForm } from './components/CardForm';
 import { QuizMode } from './components/QuizMode';
 import { ReviewMode } from './components/ReviewMode';
 import { AuthForm } from './components/AuthForm';
+import { RubyText } from './components/RubyText';
 import { StorageService } from './utils/storage';
 import { api } from './utils/api';
 
@@ -90,6 +91,12 @@ function App() {
     }
   };
 
+  const handlePlayAudio = (e: React.MouseEvent, url: string) => {
+    e.stopPropagation();
+    const audio = new Audio(url);
+    audio.play().catch(err => console.error("Play error:", err));
+  };
+
   const getProficiencyColor = (p: Proficiency) => {
     switch (p) {
       case 'mastered': return 'border-green-400 bg-green-50';
@@ -155,6 +162,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
         <CardForm 
+          userId={user.id}
           language={lang} 
           onSave={handleSaveCard} 
           onCancel={() => { setSelectedCard(null); setView(AppView.DECK); }}
@@ -200,8 +208,22 @@ function App() {
             <div className={`p-8 ${lang === 'EN' ? 'bg-gradient-to-r from-blue-600 to-blue-800' : 'bg-gradient-to-r from-rose-600 to-rose-800'} text-white`}>
                <div className="flex justify-between items-start">
                   <div>
-                    <h1 className="text-5xl font-black mb-2">{selectedCard.term}</h1>
-                    {selectedCard.reading && <p className="text-2xl font-serif opacity-90">{selectedCard.reading}</p>}
+                    {/* Render Term with Audio Button */}
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="text-5xl font-black leading-tight">
+                         <RubyText text={selectedCard.term} />
+                      </div>
+                      {selectedCard.audioUrl && (
+                         <button 
+                           onClick={(e) => handlePlayAudio(e, selectedCard.audioUrl!)}
+                           className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur-sm text-white transition-colors"
+                           title="Play Audio"
+                         >
+                           <Volume2 className="w-6 h-6" />
+                         </button>
+                      )}
+                    </div>
+                    {selectedCard.reading && <p className="text-2xl font-serif opacity-80">{selectedCard.reading}</p>}
                   </div>
                   <div className="flex gap-2">
                     <button onClick={() => setView(AppView.ADD)} className="p-2 bg-white/20 hover:bg-white/30 rounded-full backdrop-blur-sm transition-colors">
@@ -228,10 +250,32 @@ function App() {
                       {block.defCN && <p className="text-md text-slate-500 font-medium">{block.defCN}</p>}
                     </div>
                     
+                    {/* Synonyms / Antonyms Display */}
+                    {(block.synonyms || block.antonyms) && (
+                      <div className="flex gap-4 text-sm mt-1">
+                          {block.synonyms && (
+                            <div className="bg-green-50 px-2 py-1 rounded border border-green-100">
+                              <span className="font-bold text-green-700 mr-1">Synonyms:</span>
+                              <span className="text-green-800">{block.synonyms}</span>
+                            </div>
+                          )}
+                          {block.antonyms && (
+                            <div className="bg-red-50 px-2 py-1 rounded border border-red-100">
+                              <span className="font-bold text-red-700 mr-1">Antonyms:</span>
+                              <span className="text-red-800">{block.antonyms}</span>
+                            </div>
+                          )}
+                      </div>
+                    )}
+
                     {/* Sentences */}
                     {(block.sentenceEN || block.sentenceCN) && (
                        <div className="bg-slate-50 border-l-4 border-slate-300 p-4 rounded-r-lg space-y-2">
-                         {block.sentenceEN && <p className="text-slate-800 italic font-serif text-lg">"{block.sentenceEN}"</p>}
+                         {block.sentenceEN && (
+                           <div className="text-slate-800 font-medium text-lg leading-loose">
+                              <RubyText text={block.sentenceEN} />
+                           </div>
+                         )}
                          {block.sentenceCN && <p className="text-slate-500 text-sm">{block.sentenceCN}</p>}
                        </div>
                     )}
@@ -244,6 +288,22 @@ function App() {
                   </div>
                 </div>
               ))}
+
+              {/* Note Display */}
+              {selectedCard.note && (
+                <div className="mt-8 pt-8 border-t border-slate-200">
+                  <div className="bg-yellow-50 p-5 rounded-xl border border-yellow-200 relative">
+                     <div className="absolute top-4 left-4 text-yellow-500">
+                       <StickyNote className="w-5 h-5" />
+                     </div>
+                     <div className="pl-8">
+                       <h4 className="text-xs font-bold text-yellow-700 uppercase mb-2">My Note</h4>
+                       <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{selectedCard.note}</p>
+                     </div>
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -304,12 +364,26 @@ function App() {
                  className={`relative bg-white rounded-2xl p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer border-l-4 group ${getProficiencyColor(card.proficiency)}`}
                >
                  <div className="flex justify-between items-start mb-4">
-                   <div>
-                     <h3 className="text-2xl font-bold text-slate-800">{card.term}</h3>
+                   <div className="flex-1 pr-2">
+                     <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-2xl font-bold text-slate-800">
+                          {/* Use RubyText so [brackets] don't show in list view */}
+                          <RubyText text={card.term} showFurigana={true} />
+                        </h3>
+                        {card.audioUrl && (
+                          <button 
+                            onClick={(e) => handlePlayAudio(e, card.audioUrl!)}
+                            className="p-1.5 text-brand-500 bg-brand-50 hover:bg-brand-100 rounded-full transition-colors"
+                            title="Play Audio"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                          </button>
+                        )}
+                     </div>
                      {card.reading && <p className="text-sm text-slate-500">{card.reading}</p>}
                    </div>
                    {/* Proficiency Badge */}
-                   <div className={`w-3 h-3 rounded-full ${
+                   <div className={`w-3 h-3 rounded-full shrink-0 ${
                      card.proficiency === 'mastered' ? 'bg-green-500' : 
                      card.proficiency === 'hazy' ? 'bg-yellow-400' : 
                      card.proficiency === 'forgot' ? 'bg-red-500' : 'bg-slate-300'

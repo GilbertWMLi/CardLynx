@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Flashcard, Proficiency } from '../types';
-import { CheckCircle, HelpCircle, XCircle, ArrowLeft } from 'lucide-react';
+import { CheckCircle, HelpCircle, XCircle, ArrowLeft, Eye, EyeOff, Link2, StickyNote } from 'lucide-react';
+import { RubyText } from './RubyText';
 
 interface ReviewModeProps {
   cards: Flashcard[];
@@ -12,6 +13,8 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
   const [queue, setQueue] = useState<Flashcard[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [showFurigana, setShowFurigana] = useState(false); // New Toggle state
+  
   // Stats for the current session feedback
   const [sessionStats, setSessionStats] = useState({ mastered: 0, hazy: 0, forgot: 0 });
 
@@ -39,6 +42,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
       // Move to next card
       setCurrentIdx(prev => prev + 1);
       setIsFlipped(false);
+      setShowFurigana(false); // Reset furigana toggle on next card
     } else {
       // End of session: Increase timeout to 100ms to ensure React batch updates and local storage effects run.
       setTimeout(() => {
@@ -51,6 +55,11 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
   if (queue.length === 0) return <div className="p-10 text-center text-slate-500">No cards to review! Add some cards first.</div>;
 
   const card = queue[currentIdx];
+
+  // Logic to determine if we should show the toggle button
+  // 1. JP Language
+  // 2. Either has 'reading' field OR has Ruby brackets in 'term'
+  const hasReading = card.language === 'JP' && (!!card.reading || card.term.includes('['));
 
   return (
     <div className="max-w-2xl mx-auto py-8 px-4 h-full flex flex-col">
@@ -70,10 +79,43 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
         >
           {/* Front */}
           {!isFlipped && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center backface-hidden">
+            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center backface-hidden relative">
+              
+              {/* Furigana Toggle (Only for JP) */}
+              {hasReading && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setShowFurigana(!showFurigana); }}
+                  className="absolute top-6 right-6 p-2 text-slate-300 hover:text-brand-600 bg-slate-50 rounded-full transition-colors z-20"
+                  title="Toggle Furigana Reading"
+                >
+                  {showFurigana ? <Eye className="w-6 h-6" /> : <EyeOff className="w-6 h-6" />}
+                </button>
+              )}
+
               <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Term</span>
-              <h1 className="text-5xl font-black text-slate-800 mb-2">{card.term}</h1>
-              {card.reading && <p className="text-2xl text-slate-500 font-serif">{card.reading}</p>}
+              
+              {/* Ruby Display Logic */}
+              <div className="flex flex-col items-center justify-center">
+                 {/* 
+                   If using separate 'reading' field and NO brackets in term, show it separately.
+                   If using brackets in term, RubyText handles it via showFurigana.
+                 */}
+                 {card.language === 'JP' && showFurigana && card.reading && !card.term.includes('[') && (
+                   <span className="text-xl text-slate-500 mb-1 animate-in fade-in slide-in-from-bottom-2">
+                     {card.reading}
+                   </span>
+                 )}
+
+                 {/* Use RubyText for term. If term has brackets, showFurigana prop controls visibility. */}
+                 <div className="text-5xl font-black text-slate-800 mb-2">
+                   <RubyText text={card.term} showFurigana={showFurigana} />
+                 </div>
+                 
+                 {card.language !== 'JP' && card.reading && (
+                   <p className="text-xl text-slate-400 font-serif mt-2">{card.reading}</p>
+                 )}
+              </div>
+
               <p className="mt-8 text-xs text-slate-400">(Tap to flip)</p>
             </div>
           )}
@@ -81,8 +123,16 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
           {/* Back */}
           {isFlipped && (
             <div className="absolute inset-0 flex flex-col p-8 overflow-y-auto bg-slate-50 rounded-3xl backface-hidden rotate-y-180">
-               <h2 className="text-2xl font-bold text-brand-600 mb-4 border-b pb-2">{card.term}</h2>
-               <div className="space-y-6 text-left">
+               <div className="flex justify-between items-baseline mb-4 border-b pb-2">
+                 <h2 className="text-2xl font-bold text-brand-600">
+                   <RubyText text={card.term} />
+                 </h2>
+                 {card.language === 'JP' && card.reading && !card.term.includes('[') && (
+                    <span className="text-lg text-slate-500">{card.reading}</span>
+                 )}
+               </div>
+
+               <div className="space-y-6 text-left pb-4">
                   {card.blocks.map((block, idx) => (
                     <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
                       <div className="flex items-center gap-2 mb-2">
@@ -99,13 +149,46 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
                       )}
 
                       {(block.sentenceEN || block.sentenceCN) && (
-                        <div className="bg-slate-50 p-2 rounded-lg border-l-2 border-brand-300">
-                          {block.sentenceEN && <p className="text-sm text-slate-800 italic">"{block.sentenceEN}"</p>}
+                        <div className="bg-slate-50 p-2 rounded-lg border-l-2 border-brand-300 mb-3">
+                          {block.sentenceEN && (
+                            <div className="text-sm text-slate-800 leading-relaxed">
+                               <RubyText text={block.sentenceEN} />
+                            </div>
+                          )}
                           {block.sentenceCN && <p className="text-xs text-slate-400 mt-1">{block.sentenceCN}</p>}
+                        </div>
+                      )}
+
+                      {/* Synonyms / Antonyms Display */}
+                      {(block.synonyms || block.antonyms) && (
+                        <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-slate-100">
+                           {block.synonyms && (
+                             <div className="text-xs">
+                               <span className="font-bold text-green-600 mr-1">Syn:</span>
+                               <span className="text-slate-600">{block.synonyms}</span>
+                             </div>
+                           )}
+                           {block.antonyms && (
+                             <div className="text-xs">
+                               <span className="font-bold text-red-500 mr-1">Ant:</span>
+                               <span className="text-slate-600">{block.antonyms}</span>
+                             </div>
+                           )}
                         </div>
                       )}
                     </div>
                   ))}
+
+                  {/* Note Display */}
+                  {card.note && (
+                    <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
+                      <div className="flex items-center gap-2 text-yellow-700 mb-1">
+                        <StickyNote className="w-3 h-3" />
+                        <span className="text-xs font-bold uppercase">Note</span>
+                      </div>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{card.note}</p>
+                    </div>
+                  )}
                </div>
             </div>
           )}

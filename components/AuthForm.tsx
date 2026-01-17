@@ -24,11 +24,22 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
   }, []);
 
   const saveServerUrl = () => {
-    // Remove trailing slash if user adds it
-    const cleaned = serverUrl.replace(/\/$/, "");
+    // 1. Trim whitespace/newlines (Fixes "Failed to parse URL" error)
+    let cleaned = serverUrl.trim();
+    
+    // 2. Remove trailing slashes
+    cleaned = cleaned.replace(/\/+$/, "");
+    
+    // 3. Auto-add http:// if missing
+    if (!cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+      cleaned = `http://${cleaned}`;
+    }
+
     localStorage.setItem('lexideck_server_url', cleaned);
     setShowServerConfig(false);
-    window.location.reload(); // Reload to refresh API instance if needed
+    
+    // Force reload to ensure API instance picks up new URL
+    window.location.reload(); 
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,6 +86,9 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none font-mono text-sm"
                  placeholder="http://192.168.1.X:3001"
                />
+               <p className="text-xs text-slate-400 mt-1 ml-1">
+                 Ensure you use the <b>Node.js Port (3001)</b>.
+               </p>
              </div>
              
              <button 
@@ -159,7 +173,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
           </div>
 
           {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg text-center font-medium">
+            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg text-center font-medium break-words">
               {error}
             </div>
           )}
@@ -182,7 +196,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
         
         <div className="mt-6 text-center">
            <p className="text-xs text-slate-400">
-             Connected to: <span className="font-mono">{getBaseUrl()}</span>
+             Connecting to: <span className="font-mono text-slate-600">{getBaseUrl()}</span>
            </p>
         </div>
       </div>

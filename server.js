@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { fileURLToPath } from 'url';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -14,13 +15,19 @@ const PORT = 3001;
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
+// --- DEBUG: Global Request Logger ---
+app.use((req, res, next) => {
+  console.log(`[Incoming Request] ${req.method} ${req.url}`);
+  next();
+});
+
 const DATA_DIR = path.join(__dirname, 'Userdata');
 
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR);
 }
 
-// Serve uploaded images
+// Serve uploaded images and audio
 app.use('/userdata', express.static(DATA_DIR));
 
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -87,7 +94,12 @@ app.post('/api/cards', (req, res) => {
   const { userId, card } = req.body;
   if (!userId || !card) return res.status(400).json({ error: 'Missing data' });
 
-  const filePath = path.join(getUserDir(userId), 'flashcards.json');
+  const userDir = getUserDir(userId);
+  if (!fs.existsSync(userDir)) {
+    fs.mkdirSync(userDir, { recursive: true });
+  }
+
+  const filePath = path.join(userDir, 'flashcards.json');
   let cards = [];
   if (fs.existsSync(filePath)) {
     cards = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
@@ -122,17 +134,20 @@ app.delete('/api/cards/:id', (req, res) => {
 
 app.post('/api/upload', (req, res) => {
   const { userId, imageBase64, filename } = req.body;
-  // Get the host from the request to construct the correct URL
-  // This ensures images load on mobile even if the server IP changes
   const protocol = req.protocol;
-  const host = req.get('host'); // e.g., 192.168.1.5:3001
+  const host = req.get('host');
 
   if (!userId || !imageBase64 || !filename) {
     return res.status(400).json({ error: 'Missing upload data' });
   }
 
   try {
-    const userImagesDir = path.join(getUserDir(userId), 'images');
+    const userDir = getUserDir(userId);
+    if (!fs.existsSync(userDir)) {
+      fs.mkdirSync(userDir, { recursive: true });
+    }
+
+    const userImagesDir = path.join(userDir, 'images');
     if (!fs.existsSync(userImagesDir)) {
       fs.mkdirSync(userImagesDir, { recursive: true });
     }
@@ -154,12 +169,119 @@ app.post('/api/upload', (req, res) => {
   }
 });
 
-// Helper to find LAN IP
+app.post('/api/generate-audio', (req, res) => {
+  const { userId, text, language } = req.body;
+  
+  console.log(`[Audio Gen] Request. User: ${userId}, Lang: ${language}, Text: "${text}"`);
+
+  const protocol = req.protocol;
+  const host = req.get('host');
+
+  if (!userId || !text) {
+    return res.status(400).json({ error: 'Missing data' });
+  }
+
+  // Determine script based on language
+  const isEnglish = language === 'EN';
+  const scriptName = isEnglish ? 'Cambridge.py' : 'OJAD.py';
+  const pythonScript = path.join(__dirname, scriptName);
+  
+  // Clean text
+  const cleanText = text.replace(/\[[^\]]+\]/g, '').trim();
+  
+  // Prepare args (pass timestamp for unique filenames in Cambridge)
+  const args = [pythonScript, cleanText, Date.now().toString()];
+  
+  console.log(`[Audio Gen] Spawning: python ${scriptName} "${cleanText}"`);
+  
+  const pythonProcess = spawn('python', args, { cwd: __dirname });
+  
+  let resultData = '';
+  let errorData = '';
+
+  pythonProcess.on('error', (err) => {
+    console.error(`[Audio Gen] CRITICAL ERROR: Failed to launch Python.`);
+    if (!res.headersSent) {
+      return res.status(500).json({ 
+        error: 'Failed to launch Python.', 
+        details: 'Check if Python is installed and in PATH.' 
+      });
+    }
+  });
+
+  pythonProcess.stdout.on('data', (data) => {
+    const str = data.toString();
+    if (str.startsWith('DEBUG:')) {
+       console.log(`[Py Log] ${str.trim()}`);
+    } else {
+       resultData += str;
+    }
+  });
+
+  pythonProcess.stderr.on('data', (data) => {
+    errorData += data.toString();
+    console.error(`[Py Err] ${data}`);
+  });
+
+  pythonProcess.on('close', (code) => {
+    // Check specifically for Cambridge Not Found error
+    if (resultData.includes('CAMBRIDGE_ERROR:NotFound')) {
+        console.warn(`[Audio Gen] Word not found in Cambridge Dictionary: ${cleanText}`);
+        return res.status(404).json({ error: '該單字未收錄進字典，無法提供音檔' });
+    }
+    
+    // Check for other script errors
+    if (code !== 0 || resultData.includes('_ERROR:')) {
+      console.error(`[Audio Gen] Script failed. Code: ${code}`);
+      if (!res.headersSent) {
+        return res.status(500).json({ error: 'Audio generation failed', details: errorData || resultData });
+      }
+      return;
+    }
+
+    // Determine expected output prefix
+    const outputPrefix = isEnglish ? 'CAMBRIDGE_OUTPUT:' : 'OJAD_OUTPUT:';
+    
+    const lines = resultData.split('\n');
+    const outputLine = lines.find(line => line.startsWith(outputPrefix));
+    
+    if (outputLine) {
+      const tempPath = outputLine.replace(outputPrefix, '').trim();
+      
+      const userDir = getUserDir(userId);
+      const userAudioDir = path.join(userDir, 'audio');
+      
+      if (!fs.existsSync(userAudioDir)) {
+        fs.mkdirSync(userAudioDir, { recursive: true });
+      }
+
+      const filename = path.basename(tempPath);
+      const destPath = path.join(userAudioDir, filename);
+
+      try {
+        // Move file from temp/script dir to user dir
+        // fs.renameSync works if on same partition, otherwise copy+unlink
+        fs.copyFileSync(tempPath, destPath);
+        fs.unlinkSync(tempPath);
+        
+        const audioUrl = `${protocol}://${host}/userdata/${userId}/audio/${filename}`;
+        console.log(`[Audio Gen] Success! ${audioUrl}`);
+        res.json({ url: audioUrl });
+      } catch (err) {
+        console.error("Move file error:", err);
+        res.status(500).json({ error: 'Failed to save audio file' });
+      }
+    } else {
+      console.error("[Audio Gen] No output filename found in stdout.");
+      res.status(500).json({ error: 'Audio generation failed (No output)' });
+    }
+  });
+});
+
 function getLocalIp() {
   const interfaces = os.networkInterfaces();
   for (const name of Object.keys(interfaces)) {
     for (const iface of interfaces[name]) {
-      // Skip internal (localhost) and non-IPv4 addresses
       if (iface.family === 'IPv4' && !iface.internal) {
         return iface.address;
       }
@@ -168,13 +290,12 @@ function getLocalIp() {
   return 'localhost';
 }
 
-// Listen on 0.0.0.0 to accept external connections
 app.listen(PORT, '0.0.0.0', () => {
   const ip = getLocalIp();
   console.log(`\n==================================================`);
   console.log(`SERVER RUNNING!`);
   console.log(`- Local:   http://localhost:${PORT}`);
-  console.log(`- Network: http://${ip}:${PORT}  (Use this IP on your phone!)`);
-  console.log(`Data stored in: ${DATA_DIR}`);
+  console.log(`- Network: http://${ip}:${PORT}`);
+  console.log(`- Automation: OJAD (JP) & Cambridge (EN) active`);
   console.log(`==================================================\n`);
 });
