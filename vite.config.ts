@@ -10,8 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'LexiDeck Local',
-        short_name: 'LexiDeck',
+        name: 'CardLynx Local',
+        short_name: 'CardLynx',
         description: 'Local Network Flashcard App',
         theme_color: '#ffffff',
         background_color: '#ffffff',

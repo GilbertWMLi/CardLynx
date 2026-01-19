@@ -1,8 +1,8 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.lexideck.local',
-  appName: 'LexiDeck Local',
+  appId: 'com.cardlynx.local',
+  appName: 'CardLynx Local',
   webDir: 'dist',
   server: {
     androidScheme: 'http', // Changed from 'https' to 'http' to allow API calls to local server

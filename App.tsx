@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, Globe, LogOut, StickyNote, Volume2 } from 'lucide-react';
+import { Plus, BookOpen, Trash2, ArrowLeft, Brain, Layers, Edit2, Globe, LogOut, StickyNote, Volume2, Search, X } from 'lucide-react';
 import { Flashcard, AppView, Language, Proficiency, User } from './types';
 import { CardForm } from './components/CardForm';
 import { QuizMode } from './components/QuizMode';
@@ -8,6 +8,7 @@ import { AuthForm } from './components/AuthForm';
 import { RubyText } from './components/RubyText';
 import { StorageService } from './utils/storage';
 import { api } from './utils/api';
+import myLogo from './assets/logo.png';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -15,6 +16,7 @@ function App() {
   const [lang, setLang] = useState<Language>('EN');
   const [selectedCard, setSelectedCard] = useState<Flashcard | null>(null);
   const [cards, setCards] = useState<Flashcard[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
   // 1. Check for Session on mount
   useEffect(() => {
@@ -28,6 +30,13 @@ function App() {
       }
     });
   }, []);
+
+  // Reset search when view changes
+  useEffect(() => {
+    if (view !== AppView.DECK) {
+        setSearchTerm('');
+    }
+  }, [view]);
 
   const loadCards = async (userId: string) => {
     const data = await api.getCards(userId);
@@ -47,7 +56,29 @@ function App() {
     setView(AppView.AUTH);
   };
 
-  const filteredCards = cards.filter(c => c.language === lang);
+  // Filter Cards: Language AND Search Term
+  const filteredCards = cards
+    .filter(c => c.language === lang)
+    .filter(c => {
+      if (!searchTerm) return true;
+      const lowerTerm = searchTerm.toLowerCase();
+      
+      // Match against Term, Reading, or English Definitions
+      const termMatch = c.term.toLowerCase().includes(lowerTerm);
+      const readingMatch = c.reading?.toLowerCase().includes(lowerTerm);
+      const defMatch = c.blocks.some(b => b.defEN.toLowerCase().includes(lowerTerm) || b.defCN?.includes(searchTerm));
+      
+      return termMatch || readingMatch || defMatch;
+    });
+
+  // Duplicate Checker Logic
+  const checkDuplicate = (newTerm: string, currentId?: string): boolean => {
+     return cards.some(c => 
+        c.language === lang && 
+        c.term.toLowerCase().trim() === newTerm.toLowerCase().trim() &&
+        c.id !== currentId // Exclude itself if editing
+     );
+  };
 
   const handleSaveCard = async (cardData: Flashcard) => {
     if (!user) return;
@@ -118,7 +149,7 @@ function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 relative">
         <div className="absolute top-4 right-4 flex items-center gap-2">
-          <span className="text-sm font-medium text-slate-500">Hi, {user.username}</span>
+          <span className="text-sm font-medium text-slate-500">你好, {user.username}</span>
           <button 
             onClick={handleLogout} 
             className="p-2 bg-white text-slate-600 hover:text-red-600 rounded-full shadow-sm border border-slate-200 transition-colors"
@@ -129,9 +160,16 @@ function App() {
         </div>
 
         <div className="text-center mb-12">
-          <div className="w-20 h-20 bg-gradient-to-br from-brand-600 to-indigo-700 rounded-3xl mx-auto flex items-center justify-center text-white text-4xl font-black shadow-2xl mb-6">L</div>
-          <h1 className="text-4xl font-extrabold text-slate-800 mb-2">LexiDeck <span className="text-brand-600">Filesystem</span></h1>
-          <p className="text-slate-500">Data stored in: ./Userdata</p>
+          <div className="w-20 h-20 mx-auto mb-6 flex items-center justify-center">
+            {/* className="rounded-3xl shadow-2xl" 加在圖片上，讓圖片本身有圓角和陰影 */}
+            <img 
+              src={myLogo} 
+              alt="App Icon" 
+              className="w-full h-full object-cover rounded-3xl shadow-2xl" 
+            />
+          </div>
+          <h1 className="text-4xl font-extrabold text-slate-800 mb-2">CardLynx</h1>
+          <p className="text-slate-500">Data 儲存路徑: ./Userdata</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
@@ -140,8 +178,8 @@ function App() {
             className="group relative bg-white p-8 rounded-2xl shadow-xl border-2 border-transparent hover:border-blue-500 transition-all flex flex-col items-center hover:-translate-y-1"
           >
             <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 text-2xl font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">En</div>
-            <h2 className="text-2xl font-bold text-slate-800">English</h2>
-            <p className="text-slate-400 mt-2">Cambridge Dictionary Support</p>
+            <h2 className="text-2xl font-bold text-slate-800">英文字卡</h2>
+            <p className="text-slate-400 mt-2">劍橋詞典</p>
           </button>
 
           <button 
@@ -149,8 +187,8 @@ function App() {
             className="group relative bg-white p-8 rounded-2xl shadow-xl border-2 border-transparent hover:border-rose-500 transition-all flex flex-col items-center hover:-translate-y-1"
           >
              <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-full flex items-center justify-center mb-4 text-2xl font-bold group-hover:bg-rose-600 group-hover:text-white transition-colors">あ</div>
-            <h2 className="text-2xl font-bold text-slate-800">Japanese</h2>
-            <p className="text-slate-400 mt-2">Weblio Dictionary Support</p>
+            <h2 className="text-2xl font-bold text-slate-800">日文字卡</h2>
+            <p className="text-slate-400 mt-2">Weblio 辭書</p>
           </button>
         </div>
       </div>
@@ -167,6 +205,7 @@ function App() {
           onSave={handleSaveCard} 
           onCancel={() => { setSelectedCard(null); setView(AppView.DECK); }}
           initialData={selectedCard || undefined}
+          checkDuplicate={checkDuplicate}
         />
       </div>
     );
@@ -200,7 +239,7 @@ function App() {
       <div className="min-h-screen bg-slate-50 p-4 md:p-8">
         <div className="max-w-3xl mx-auto">
           <button onClick={() => { setSelectedCard(null); setView(AppView.DECK); }} className="mb-6 flex items-center gap-2 text-slate-500 hover:text-slate-800 font-medium">
-            <ArrowLeft className="w-5 h-5" /> Back to Deck
+            <ArrowLeft className="w-5 h-5" /> 回到卡組列表
           </button>
           
           <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-200">
@@ -255,13 +294,13 @@ function App() {
                       <div className="flex gap-4 text-sm mt-1">
                           {block.synonyms && (
                             <div className="bg-green-50 px-2 py-1 rounded border border-green-100">
-                              <span className="font-bold text-green-700 mr-1">Synonyms:</span>
+                              <span className="font-bold text-green-700 mr-1">相近詞:</span>
                               <span className="text-green-800">{block.synonyms}</span>
                             </div>
                           )}
                           {block.antonyms && (
                             <div className="bg-red-50 px-2 py-1 rounded border border-red-100">
-                              <span className="font-bold text-red-700 mr-1">Antonyms:</span>
+                              <span className="font-bold text-red-700 mr-1">相反詞:</span>
                               <span className="text-red-800">{block.antonyms}</span>
                             </div>
                           )}
@@ -315,31 +354,55 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20">
       <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 shrink-0">
              <button onClick={() => setView(AppView.HOME)} className="flex items-center gap-2 text-slate-400 hover:text-brand-600 transition-colors">
                <Globe className="w-5 h-5" />
              </button>
-             <h1 className="text-xl font-bold text-slate-800">
-               {lang === 'EN' ? 'English Deck' : 'Japanese Deck'}
+             {/* Hide title on mobile if searching to save space */}
+             <h1 className={`text-xl font-bold text-slate-800 ${searchTerm ? 'hidden md:block' : 'block'}`}>
+               {lang === 'EN' ? '英文字卡' : '日文字卡'}
              </h1>
           </div>
-          <div className="flex gap-4 items-center">
+          
+          {/* Search Bar */}
+          <div className="flex-1 max-w-md relative">
+             <div className="relative">
+               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+               <input 
+                 type="text" 
+                 value={searchTerm}
+                 onChange={(e) => setSearchTerm(e.target.value)}
+                 placeholder="搜尋單字..."
+                 className="w-full pl-9 pr-8 py-2 bg-slate-100 border-transparent focus:bg-white focus:border-brand-500 focus:ring-2 focus:ring-brand-200 rounded-lg text-sm transition-all outline-none"
+               />
+               {searchTerm && (
+                 <button 
+                   onClick={() => setSearchTerm('')}
+                   className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                 >
+                   <X className="w-4 h-4" />
+                 </button>
+               )}
+             </div>
+          </div>
+
+          <div className="flex gap-4 items-center shrink-0">
             <div className="flex gap-2">
-              <button onClick={() => setView(AppView.REVIEW)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
-                <Layers className="w-4 h-4" /> Flashcards
+              <button onClick={() => setView(AppView.REVIEW)} className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">
+                <Layers className="w-4 h-4" /> <span className="hidden md:inline">熟練度測驗</span>
               </button>
-              <button onClick={() => setView(AppView.QUIZ)} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors">
-                <Brain className="w-4 h-4" /> Quiz
+              <button onClick={() => setView(AppView.QUIZ)} className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm font-bold text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition-colors">
+                <Brain className="w-4 h-4" /> <span className="hidden md:inline">測驗</span>
               </button>
-              <button onClick={() => { setSelectedCard(null); setView(AppView.ADD); }} className="flex items-center gap-2 px-4 py-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors">
-                <Plus className="w-4 h-4" /> Add
+              <button onClick={() => { setSelectedCard(null); setView(AppView.ADD); }} className="flex items-center gap-2 px-3 md:px-4 py-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg transition-colors">
+                <Plus className="w-4 h-4" /> <span className="hidden md:inline">添加字卡</span>
               </button>
             </div>
             
             <button 
               onClick={handleLogout} 
-              className="p-2 ml-2 text-slate-400 hover:text-red-500 hover:bg-slate-50 rounded-full transition-colors"
+              className="p-2 ml-2 text-slate-400 hover:text-red-500 hover:bg-slate-50 rounded-full transition-colors hidden md:block"
               title="Logout"
             >
               <LogOut className="w-5 h-5" />
@@ -352,8 +415,18 @@ function App() {
          {filteredCards.length === 0 ? (
            <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-slate-300">
              <BookOpen className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-             <h3 className="text-lg font-semibold text-slate-500">No cards in this deck</h3>
-             <button onClick={() => setView(AppView.ADD)} className="mt-4 text-brand-600 font-bold hover:underline">Create your first card</button>
+             {searchTerm ? (
+               <>
+                 <h3 className="text-lg font-semibold text-slate-500">沒有找到符合的字卡</h3>
+                 <p className="text-slate-400">請換個關鍵字再試試看</p>
+                 <button onClick={() => setSearchTerm('')} className="mt-4 text-brand-600 font-bold hover:underline">Clear Search</button>
+               </>
+             ) : (
+               <>
+                 <h3 className="text-lg font-semibold text-slate-500">這個牌組中沒有卡片</h3>
+                 <button onClick={() => setView(AppView.ADD)} className="mt-4 text-brand-600 font-bold hover:underline">創建你的第一張卡片</button>
+               </>
+             )}
            </div>
          ) : (
            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

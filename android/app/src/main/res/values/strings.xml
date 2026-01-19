@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">LexiDeck Local</string>
-    <string name="title_activity_main">LexiDeck Local</string>
-    <string name="package_name">com.lexideck.local</string>
-    <string name="custom_url_scheme">com.lexideck.local</string>
-</resources>

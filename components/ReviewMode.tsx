@@ -52,7 +52,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
     }
   };
 
-  if (queue.length === 0) return <div className="p-10 text-center text-slate-500">No cards to review! Add some cards first.</div>;
+  if (queue.length === 0) return <div className="p-10 text-center text-slate-500">沒有卡片可以複習！請先新增一些卡片吧。</div>;
 
   const card = queue[currentIdx];
 
@@ -65,9 +65,9 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
     <div className="max-w-2xl mx-auto py-8 px-4 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <button onClick={onExit} className="text-slate-500 hover:text-slate-800 flex items-center gap-2">
-          <ArrowLeft className="w-5 h-5" /> Quit Review
+          <ArrowLeft className="w-5 h-5" /> 結束複習
         </button>
-        <span className="text-sm font-medium text-slate-400">Card {currentIdx + 1} / {queue.length}</span>
+        <span className="text-sm font-medium text-slate-400">單字卡 {currentIdx + 1} / {queue.length}</span>
       </div>
 
       <div className="flex-1 flex flex-col">
@@ -92,7 +92,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
                 </button>
               )}
 
-              <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Term</span>
+              <span className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">單字</span>
               
               {/* Ruby Display Logic */}
               <div className="flex flex-col items-center justify-center">
@@ -164,13 +164,13 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
                         <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-slate-100">
                            {block.synonyms && (
                              <div className="text-xs">
-                               <span className="font-bold text-green-600 mr-1">Syn:</span>
+                               <span className="font-bold text-green-600 mr-1">同:</span>
                                <span className="text-slate-600">{block.synonyms}</span>
                              </div>
                            )}
                            {block.antonyms && (
                              <div className="text-xs">
-                               <span className="font-bold text-red-500 mr-1">Ant:</span>
+                               <span className="font-bold text-red-500 mr-1">反:</span>
                                <span className="text-slate-600">{block.antonyms}</span>
                              </div>
                            )}
@@ -201,7 +201,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
             className="flex flex-col items-center justify-center py-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl border-2 border-red-100 transition-colors"
           >
             <XCircle className="w-6 h-6 mb-1" />
-            <span className="font-bold text-sm">Forgot</span>
+            <span className="font-bold text-sm">忘記了</span>
           </button>
           
           <button 
@@ -209,7 +209,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
             className="flex flex-col items-center justify-center py-4 bg-yellow-50 hover:bg-yellow-100 text-yellow-600 rounded-xl border-2 border-yellow-100 transition-colors"
           >
             <HelpCircle className="w-6 h-6 mb-1" />
-            <span className="font-bold text-sm">Hazy</span>
+            <span className="font-bold text-sm">稍微懂</span>
           </button>
 
           <button 
@@ -217,7 +217,7 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({ cards, onUpdateProficien
             className="flex flex-col items-center justify-center py-4 bg-green-50 hover:bg-green-100 text-green-600 rounded-xl border-2 border-green-100 transition-colors"
           >
             <CheckCircle className="w-6 h-6 mb-1" />
-            <span className="font-bold text-sm">Mastered</span>
+            <span className="font-bold text-sm">精通</span>
           </button>
         </div>
       </div>

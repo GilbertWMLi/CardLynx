@@ -4,6 +4,7 @@ import { StorageService } from '../utils/storage';
 import { Loader2, Lock, User as UserIcon, ArrowRight, Settings, Server } from 'lucide-react';
 import { getBaseUrl } from '../utils/api';
 import { Capacitor } from '@capacitor/core';
+import myLogo from "../assets/logo.png"; // 依據你的實際路徑修改
 
 interface AuthFormProps {
   onLogin: (user: User) => void;
@@ -90,18 +91,18 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
              <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-600">
                <Server className="w-6 h-6" />
              </div>
-             <h2 className="text-xl font-bold text-slate-800">Server Connection</h2>
+             <h2 className="text-xl font-bold text-slate-800">伺服器連線設定</h2>
              <p className="text-sm text-slate-500 mt-2">
                {isNative 
                  ? "Since you are on the Mobile App, you must connect to your PC's IP address."
-                 : "Enter the IP address displayed on your computer's terminal."
+                 : "輸入顯示在你電腦提示字元(cmd)上的 IP 位址。"
                }
              </p>
            </div>
 
            <div className="space-y-4">
              <div>
-               <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">PC Server URL</label>
+               <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">伺服器IP</label>
                <input 
                  type="url" 
                  value={serverUrl}
@@ -110,7 +111,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
                  placeholder="http://192.168.1.XXX:3001"
                />
                <p className="text-xs text-slate-400 mt-1 ml-1">
-                 Check your PC terminal for <b>Network: http://...</b>
+                 檢查你的電腦的命令提示字元(cmd)，應該會有一行是  <b>Network: http://...</b>
                </p>
              </div>
              
@@ -118,7 +119,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
                onClick={saveServerUrl}
                className="w-full py-3 bg-brand-600 text-white rounded-xl font-bold hover:bg-brand-700 transition-colors"
              >
-               Save & Connect
+               儲存 & 連線
              </button>
              
              {/* Only allow cancel if we already have a valid URL stored, otherwise forcing setup prevents broken state */}
@@ -139,8 +140,14 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col items-center justify-center p-4">
       <div className="mb-8 text-center">
-        <div className="w-16 h-16 bg-gradient-to-br from-brand-600 to-indigo-700 rounded-2xl mx-auto flex items-center justify-center text-white text-3xl font-black shadow-xl mb-4">L</div>
-        <h1 className="text-3xl font-extrabold text-slate-800">LexiDeck <span className="text-brand-600">Local</span></h1>
+        <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+          <img 
+            src={myLogo} 
+            alt="App Logo" 
+            className="w-full h-full object-cover rounded-2xl shadow-xl" 
+          />
+        </div>
+        <h1 className="text-3xl font-extrabold text-slate-800">LexiDeck</h1>
         <p className="text-slate-500 mt-2">Your vocabulary, on your network.</p>
       </div>
 
@@ -158,19 +165,19 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
             onClick={() => { setIsRegister(false); setError(''); }}
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${!isRegister ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            Log In
+            登入
           </button>
           <button 
             onClick={() => { setIsRegister(true); setError(''); }}
             className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${isRegister ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
-            Sign Up
+            註冊
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Username</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">使用者名稱</label>
             <div className="relative">
               <UserIcon className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
@@ -178,14 +185,14 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                placeholder="Enter username"
+                placeholder="輸入使用者名稱"
                 required
               />
             </div>
           </div>
           
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">Password</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1 ml-1">密碼</label>
             <div className="relative">
               <Lock className="absolute left-3 top-3.5 w-5 h-5 text-slate-400" />
               <input
@@ -193,7 +200,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-500 outline-none transition-all"
-                placeholder="Enter password"
+                placeholder="輸入密碼"
                 required
               />
             </div>
@@ -214,7 +221,7 @@ export const AuthForm: React.FC<AuthFormProps> = ({ onLogin }) => {
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                {isRegister ? 'Create Account' : 'Connect'}
+                {isRegister ? '創建帳號' : '登入'}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}

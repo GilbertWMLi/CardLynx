@@ -1,5 +1,5 @@
 {
-  "name": "LexiDeck Local",
+  "name": "CardLynx Local",
   "description": "A high-performance, offline-capable flashcard app featuring local OCR for text extraction and algorithmic sentence analysis without external AI dependencies.",
   "requestFramePermissions": []
 }
