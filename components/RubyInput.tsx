@@ -41,12 +41,47 @@ export const RubyInput: React.FC<RubyInputProps> = ({
     while ((match = regex.exec(text)) !== null) {
       if (match[1]) {
         // Matched format: Base[Reading]
-        newSegments.push({
-          id: Math.random().toString(36).substr(2, 9),
-          base: match[1],
-          reading: match[2],
-          isKanji: true
-        });
+        const base = match[1];
+        const reading = match[2];
+
+        // HEURISTIC FIX for "Sticky Particles":
+        // Issue: In "図書館で勉[べん]", the greedy regex captures "図書館で勉" as the base.
+        // Old Logic: ^([^\u4e00-\u9faf]+)([\u4e00-\u9faf]+)$ (Strictly non-kanji prefix) -> Fails if prefix is "図書館で"
+        // New Logic: ^(.*[^\u4e00-\u9faf])([\u4e00-\u9faf]+)$ (Any prefix ending in non-kanji) -> Matches "図書館で" + "勉"
+        
+        // Group 1: Prefix ending in a non-kanji char (e.g. "図書館で")
+        // Group 2: The Kanji block at the end (e.g. "勉")
+        const stickyMatch = base.match(/^(.*[^\u4e00-\u9faf])([\u4e00-\u9faf]+)$/);
+
+        if (stickyMatch) {
+            // Split into two segments
+            const prefix = stickyMatch[1]; // e.g., "図書館で"
+            const kanjiPart = stickyMatch[2]; // e.g., "勉"
+
+            // 1. Prefix (Particle/Context)
+            newSegments.push({
+              id: Math.random().toString(36).substr(2, 9),
+              base: prefix,
+              reading: '', // Particles usually don't have ruby via brackets in this context
+              isKanji: false
+            });
+
+            // 2. Kanji Part (The actual ruby word)
+            newSegments.push({
+              id: Math.random().toString(36).substr(2, 9),
+              base: kanjiPart,
+              reading: reading,
+              isKanji: true
+            });
+        } else {
+            // Standard behavior (No sticky particle detected)
+            newSegments.push({
+              id: Math.random().toString(36).substr(2, 9),
+              base: match[1],
+              reading: match[2],
+              isKanji: true
+            });
+        }
       } else if (match[3]) {
         // Matched single character (no brackets)
         const char = match[3];
@@ -88,9 +123,7 @@ export const RubyInput: React.FC<RubyInputProps> = ({
   useEffect(() => {
     const parsed = parseValueToSegments(value);
     setSegments(parsed);
-    // If initial value is empty, user probably wants to type, so default to raw for sentences
-    // But for "Term", we might want visual. Let's stick to visual default but show empty state.
-  }, []);
+  }, [value]);
 
   // Handle changes in Visual Mode
   const handleSegmentChange = (id: string, field: keyof RubySegment, newVal: string) => {
